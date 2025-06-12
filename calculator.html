@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>互動式三角測量計算機 (智慧版)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Chosen Palette: Warm Neutrals -->
+    <!-- Application Structure Plan: The application is designed as an interactive calculator that follows a user's learning journey. It starts with a dynamic visualization to explain the core concept, then provides input fields for the user's real-world data, and finally displays the calculated results with clear formulas. This task-oriented flow transforms a static guide into an active learning tool, making the abstract concept of triangulation tangible and more engaging for students. Gemini features are added to extend the learning after the calculation is complete. -->
+    <!-- Visualization & Content Choices: The core concept is shown with a Chart.js scatter plot, creating an interactive diagram of the triangulation setup. Sliders and input fields allow users to manipulate variables (h, d1, d2) and see real-time updates to both the visual and the calculated height. After calculation, Gemini API buttons appear: one generates a contextual word problem using the calculated height, and another provides historical context, deepening the educational value. -->
+    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+        }
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 300px;
+            max-height: 40vh;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+        .slider-track {
+            background: #e2e8f0;
+        }
+        .slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #4a5568;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            background: #4a5568;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        input[type=range]::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            background: #4a5568;
+            cursor: pointer;
+            border-radius: 50%;
+        }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            border-left-color: #4a5568;
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .gemini-button {
+            background-color: #f7f3e9;
+            color: #7d6e5c;
+            border: 1px solid #dcd3c4;
+        }
+        .gemini-button:hover {
+            background-color: #efe8da;
+        }
+    </style>
+</head>
+<body class="bg-[#F5F5F3] text-gray-800">
+
+    <div class="container mx-auto p-4 md:p-8 max-w-5xl">
+
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold text-gray-900">互動式三角測量計算機 ✨ 智慧版</h1>
+            <p class="mt-2 text-lg text-gray-600">一個將數學原理應用於真實世界的工具</p>
+        </header>
+
+        <main>
+            <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8 mb-8">
+                <h2 class="text-2xl font-bold mb-4">原理視覺化</h2>
+                <p class="mb-6 text-gray-700">透過光的反射原理，你的視線、鏡子與大樓構成兩個相似的直角三角形。調整下方的滑桿，觀察三角形如何隨著變數改變，並即時看到計算出的大樓高度。</p>
+                <div class="chart-container mb-6">
+                    <canvas id="trigChart"></canvas>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div>
+                        <label for="hSlider" class="block text-sm font-medium text-gray-700">你的身高 (h): <span id="hSliderValue" class="font-bold">170</span> cm</label>
+                        <input id="hSlider" type="range" min="120" max="220" step="1" value="170" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-track">
+                    </div>
+                    <div>
+                        <label for="d1Slider" class="block text-sm font-medium text-gray-700">你到鏡子的距離 (d1): <span id="d1SliderValue" class="font-bold">300</span> cm</label>
+                        <input id="d1Slider" type="range" min="100" max="1000" step="10" value="300" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-track">
+                    </div>
+                    <div>
+                        <label for="d2Slider" class="block text-sm font-medium text-gray-700">鏡子到大樓的距離 (d2): <span id="d2SliderValue" class="font-bold">2000</span> cm</label>
+                        <input id="d2Slider" type="range" min="500" max="5000" step="50" value="2000" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer slider-track">
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-2xl shadow-lg p-6 md:p-8">
+                <h2 class="text-2xl font-bold mb-4">輸入你的測量數據</h2>
+                <p class="mb-6 text-gray-700">現在，請輸入你在現實世界中測量到的精確數值 (單位：公分)，然後點擊「計算」按鈕！</p>
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-6 items-end">
+                    <div class="md:col-span-1">
+                        <label for="hInput" class="block text-sm font-medium text-gray-700">你的身高 (h)</label>
+                        <input type="number" id="hInput" value="170" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                    <div class="md:col-span-1">
+                        <label for="d1Input" class="block text-sm font-medium text-gray-700">你到鏡子的距離 (d1)</label>
+                        <input type="number" id="d1Input" value="300" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                    <div class="md:col-span-1">
+                        <label for="d2Input" class="block text-sm font-medium text-gray-700">鏡子到大樓的距離 (d2)</label>
+                        <input type="number" id="d2Input" value="2000" class="mt-1 block w-full px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                    </div>
+                    <div class="md:col-span-1">
+                        <button id="calculateBtn" class="w-full bg-gray-800 text-white font-bold py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition duration-150 ease-in-out">
+                            計算
+                        </button>
+                    </div>
+                </div>
+
+                <div id="results" class="mt-8 border-t pt-6 hidden">
+                    <h3 class="text-xl font-bold mb-4">計算結果</h3>
+                    <div class="bg-green-50 border-l-4 border-green-400 p-4 rounded-r-lg mb-6">
+                         <p class="text-lg text-green-800">根據你的數據，計算出的大樓高度約為：</p>
+                         <p class="text-4xl font-bold text-green-900 mt-2"><span id="resultValue"></span> 公分</p>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="font-bold text-lg mb-2">方法一：相似三角形</h4>
+                            <p class="text-sm text-gray-600 mb-2">H / d2 = h / d1</p>
+                            <code id="formula1" class="text-gray-800 bg-gray-200 p-2 rounded-md block whitespace-pre-wrap"></code>
+                        </div>
+                        <div class="bg-gray-50 p-4 rounded-lg">
+                            <h4 class="font-bold text-lg mb-2">方法二：三角函數 (tan)</h4>
+                            <p class="text-sm text-gray-600 mb-2">H = tan(θ) * d2</p>
+                            <code id="formula2" class="text-gray-800 bg-gray-200 p-2 rounded-md block whitespace-pre-wrap"></code>
+                        </div>
+                    </div>
+
+                    <div id="gemini-features" class="mt-8 border-t pt-6">
+                        <h3 class="text-xl font-bold mb-4">✨ 延伸探索</h3>
+                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <button id="problemBtn" class="w-full gemini-button font-bold py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition duration-150 ease-in-out flex items-center justify-center space-x-2">
+                                <span>產生應用問題</span>
+                            </button>
+                            <button id="historyBtn" class="w-full gemini-button font-bold py-2 px-4 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-amber-500 transition duration-150 ease-in-out flex items-center justify-center space-x-2">
+                                <span>探索三角學歷史</span>
+                            </button>
+                        </div>
+                        <div id="gemini-output" class="mt-4">
+                            <div id="problem-container" class="hidden">
+                                <div id="problem-loader" class="flex justify-center items-center p-4"><div class="spinner"></div></div>
+                                <div id="problem-content" class="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-r-lg"></div>
+                            </div>
+                            <div id="history-container" class="hidden mt-4">
+                                 <div id="history-loader" class="flex justify-center items-center p-4"><div class="spinner"></div></div>
+                                 <div id="history-content" class="bg-sky-50 border-l-4 border-sky-400 p-4 rounded-r-lg"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+        
+        <footer class="text-center mt-12 mb-4">
+            <p class="text-gray-500">恭喜！你已經掌握了這個從古代流傳至今的強大測量技術。</p>
+        </footer>
+    </div>
+
+    <script>
+        const ctx = document.getElementById('trigChart');
+        const hSlider = document.getElementById('hSlider');
+        const d1Slider = document.getElementById('d1Slider');
+        const d2Slider = document.getElementById('d2Slider');
+        const hSliderValue = document.getElementById('hSliderValue');
+        const d1SliderValue = document.getElementById('d1SliderValue');
+        const d2SliderValue = document.getElementById('d2SliderValue');
+        
+        const hInput = document.getElementById('hInput');
+        const d1Input = document.getElementById('d1Input');
+        const d2Input = document.getElementById('d2Input');
+        const calculateBtn = document.getElementById('calculateBtn');
+        const resultsDiv = document.getElementById('results');
+        const resultValue = document.getElementById('resultValue');
+        const formula1 = document.getElementById('formula1');
+        const formula2 = document.getElementById('formula2');
+
+        const problemBtn = document.getElementById('problemBtn');
+        const historyBtn = document.getElementById('historyBtn');
+        const problemContainer = document.getElementById('problem-container');
+        const problemLoader = document.getElementById('problem-loader');
+        const problemContent = document.getElementById('problem-content');
+        const historyContainer = document.getElementById('history-container');
+        const historyLoader = document.getElementById('history-loader');
+        const historyContent = document.getElementById('history-content');
+
+        let chart;
+        let lastCalculation = {};
+
+        const chartConfig = {type:'scatter',data:{datasets:[{label:'佈局點',data:[],backgroundColor:'rgb(75, 85, 99)',pointRadius:6,pointHoverRadius:8},{label:'視線',data:[],type:'line',borderColor:'rgb(239, 68, 68)',borderWidth:2,fill:false,showLine:true,pointRadius:0,tension:0},{label:'地面',data:[],type:'line',borderColor:'rgb(34, 197, 94)',borderWidth:3,fill:false,showLine:true,pointRadius:0,tension:0},{label:'輔助線',data:[],type:'line',borderColor:'rgba(107, 114, 128, 0.5)',borderDash:[5,5],borderWidth:1,fill:false,showLine:true,pointRadius:0,tension:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(context){const point=context.dataset.data[context.dataIndex];if(context.datasetIndex===0){if(point.label)return`${point.label}: (${point.x.toFixed(0)}, ${point.y.toFixed(0)})`;}
+return null;}}}},scales:{x:{type:'linear',position:'bottom',title:{display:true,text:'距離 (cm)'},grid:{display:false}},y:{beginAtZero:true,title:{display:true,text:'高度 (cm)'},grid:{color:'#e5e7eb'}}}}};
+
+        function updateChart(h, d1, d2, H) {
+            const personX = -d1;
+            const buildingX = d2;
+
+            const layoutPoints = [{x:personX,y:h,label:'你的眼睛'},{x:personX,y:0,label:'你的腳'},{x:0,y:0,label:'鏡子'},{x:buildingX,y:0,label:'大樓底部'},{x:buildingX,y:H,label:'大樓頂部'},];
+            const sightLine = [{x:personX,y:h},{x:0,y:0},{x:buildingX,y:H},];
+            const groundLine = [{x:personX-1,y:0},{x:buildingX+1,y:0}];
+            const helperLines = [{x:personX,y:0},{x:personX,y:h},{x:0,y:0},{x:0,y:0},{x:buildingX,y:0},{x:buildingX,y:H}];
+
+            chart.data.datasets[0].data = layoutPoints;
+            chart.data.datasets[1].data = sightLine;
+            chart.data.datasets[2].data = groundLine;
+            chart.data.datasets[3].data = helperLines;
+            
+            const maxX = Math.max(d2+50,100);
+            const minX = Math.min(-d1-50,-50);
+            const maxY = Math.max(H+50,h+50);
+
+            chart.options.scales.x.max = maxX;
+            chart.options.scales.x.min = minX;
+            chart.options.scales.y.max = maxY;
+
+            chart.update();
+        }
+
+        function calculateAndUpdate() {
+            const h = parseFloat(hSlider.value);
+            const d1 = parseFloat(d1Slider.value);
+            const d2 = parseFloat(d2Slider.value);
+            
+            hSliderValue.textContent = h.toFixed(0);
+            d1SliderValue.textContent = d1.toFixed(0);
+            d2SliderValue.textContent = d2.toFixed(0);
+
+            if(d1===0)return;
+            const H = (h*d2)/d1;
+            
+            updateChart(h, d1, d2, H);
+        }
+
+        function performCalculation() {
+            const h = parseFloat(hInput.value);
+            const d1 = parseFloat(d1Input.value);
+            const d2 = parseFloat(d2Input.value);
+
+            if(isNaN(h)||isNaN(d1)||isNaN(d2)||h<=0||d1<=0||d2<=0){
+                alert('請輸入有效且大於零的數值！');
+                return;
+            }
+
+            const H = (h*d2)/d1;
+            const tanTheta = h/d1;
+            
+            lastCalculation = { h, d1, d2, H };
+
+            resultValue.textContent = H.toFixed(0);
+            formula1.textContent = `H = (${h} * ${d2}) / ${d1} \n  = ${H.toFixed(0)}`;
+            formula2.textContent = `tan(θ) = ${h} / ${d1} ≈ ${tanTheta.toFixed(4)}\nH = ${tanTheta.toFixed(4)} * ${d2} \n  = ${H.toFixed(0)}`;
+
+            resultsDiv.classList.remove('hidden');
+            problemContainer.classList.add('hidden');
+            historyContainer.classList.add('hidden');
+        }
+
+        async function callGemini(prompt) {
+            const apiKey = "";
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+            
+            const payload = {
+                contents: [{
+                    role: "user",
+                    parts: [{ text: prompt }]
+                }]
+            };
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API call failed with status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                
+                if (result.candidates && result.candidates.length > 0 &&
+                    result.candidates[0].content && result.candidates[0].content.parts &&
+                    result.candidates[0].content.parts.length > 0) {
+                    return result.candidates[0].content.parts[0].text;
+                } else {
+                    return "無法生成內容，請稍後再試。";
+                }
+            } catch (error) {
+                console.error("Gemini API call error:", error);
+                return "呼叫智慧功能時發生錯誤。";
+            }
+        }
+
+        async function generateProblem() {
+            problemContainer.classList.remove('hidden');
+            problemLoader.classList.remove('hidden');
+            problemContent.classList.add('hidden');
+            historyContainer.classList.add('hidden');
+            
+            const { H, h, d1, d2 } = lastCalculation;
+            if (!H) return;
+
+            const prompt = `Based on the following data: a person with height ${h.toFixed(0)}cm, standing ${d1.toFixed(0)}cm from a mirror, sees the top of a building that is ${d2.toFixed(0)}cm from the mirror, resulting in a calculated building height of ${H.toFixed(0)}cm. Create a short, interesting, and slightly challenging math word problem in Traditional Chinese that uses the building's height. The problem should be suitable for a middle or high school student and be solvable with basic trigonometry or geometry.`;
+            
+            const problemText = await callGemini(prompt);
+            
+            problemContent.innerHTML = problemText.replace(/\n/g, '<br>');
+            problemLoader.classList.add('hidden');
+            problemContent.classList.remove('hidden');
+        }
+        
+        async function getHistory() {
+            historyContainer.classList.remove('hidden');
+            historyLoader.classList.remove('hidden');
+            historyContent.classList.add('hidden');
+            problemContainer.classList.add('hidden');
+
+            const prompt = `In Traditional Chinese, provide a brief, interesting historical fact or story (under 150 words) about the real-world application of trigonometry or triangulation. Make it engaging for a student, focusing on a specific example like ancient astronomy, cartography, or military use.`;
+
+            const historyText = await callGemini(prompt);
+
+            historyContent.innerHTML = historyText.replace(/\n/g, '<br>');
+            historyLoader.classList.add('hidden');
+            historyContent.classList.remove('hidden');
+        }
+
+
+        window.onload = function() {
+            chart = new Chart(ctx, chartConfig);
+            calculateAndUpdate();
+
+            hSlider.addEventListener('input', calculateAndUpdate);
+            d1Slider.addEventListener('input', calculateAndUpdate);
+            d2Slider.addEventListener('input', calculateAndUpdate);
+            
+            calculateBtn.addEventListener('click', performCalculation);
+            problemBtn.addEventListener('click', generateProblem);
+            historyBtn.addEventListener('click', getHistory);
+
+            hInput.addEventListener('input', () => hSlider.value = hInput.value);
+            d1Input.addEventListener('input', () => d1Slider.value = d1Input.value);
+            d2Input.addEventListener('input', () => d2Slider.value = d2Input.value);
+
+            hSlider.addEventListener('input', () => hInput.value = hSlider.value);
+            d1Slider.addEventListener('input', () => d1Input.value = d1Slider.value);
+            d2Slider.addEventListener('input', () => d2Input.value = d2Slider.value);
+        };
+    </script>
+</body>
+</html>
